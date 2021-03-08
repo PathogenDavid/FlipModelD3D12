@@ -26,6 +26,8 @@ struct dx12_swapchain_options
 	struct {
 		float overdraw_factor;
 		int cpu_draw_ms;
+		int late_sync;
+		int tearing_visualization;
 	} any_time;
 
 	// changing these will cause the device to be recreated
@@ -34,6 +36,7 @@ struct dx12_swapchain_options
 		int max_frame_latency;
 		int swapchain_buffer_count;
 		int gpu_frame_count;
+		int allow_tearing;
 	} create_time;
 
 	struct {

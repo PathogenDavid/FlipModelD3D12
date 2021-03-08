@@ -353,6 +353,10 @@ static bool initialize_dx12_internal()
 		CheckHresult(CreateDXGIFactory2(dxgiFactory2Flags, IID_PPV_ARGS(&dx12->dxgi_factory)));
 	}
 
+	// Fix for SetStablePowerState complaining about developer mode even though it's enabled
+	// https://discord.com/channels/590611987420020747/590965930658496690/811575822640742451
+	D3D12EnableExperimentalFeatures(0, nullptr, nullptr, nullptr);
+
 	// Create the device
 	{
 		auto dxgi_factory = dx12->dxgi_factory.Get();
@@ -704,13 +708,13 @@ static void dequeue_presents(dx12_render_stats *out_stats, int from = 0)
 	}
 }
 
-static void present_dx12(frame_data *frame, UINT64 FrameBeginTime, int vsync, dx12_render_stats *out_stats)
+static void present_dx12(frame_data *frame, UINT64 FrameBeginTime, int vsync, int allow_tearing, dx12_render_stats *out_stats)
 {
 	UINT SyncInterval = vsync;
 	auto chain = dx12->swap_chain.Get();
 
 	auto present_call = eviz->Start(EventViz::kCpuQueue, &event_types[EVENT_TYPE_PRESENT_CALL]);
-	chain->Present(SyncInterval, 0);
+	chain->Present(SyncInterval, (SyncInterval == 0 && allow_tearing) ? DXGI_PRESENT_ALLOW_TEARING : 0);
 	eviz->End(present_call);
 
 	UINT color_index = frame->backbuffer_index % NUM_FRAME_COLORS;
@@ -756,6 +760,11 @@ static bool resize_dx12_internal(void *pHWND, void *pCoreWindow, float x_dips, f
 	swap_chain_desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 	swap_chain_desc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED; // unused
 	swap_chain_desc.Flags = swapchain_opts.create_time.use_waitable_object ? DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT : 0;
+
+	if (swapchain_opts.create_time.allow_tearing) // Could probably set this unconditionally
+	{
+		swap_chain_desc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+	}
 
 	// Create a new swap chain (initialization, parameters changed, etc)
 	if(!dx12->swap_chain)
@@ -1232,10 +1241,19 @@ static void build_frame(
 
 	// Clear buffers, setup targets, viewports, scissor
 	//const FLOAT clear_color[4] = {1.0f, 0.75f, 0.0f, 0.0f};
-	const FLOAT clear_color[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
+	FLOAT clear_color[4] = { 1.0f, 1.0f, 1.0f, 0.0f };
 	D3D12_RECT rect {};
 	rect.right = dx12->screen_width;
 	rect.bottom = dx12->screen_height;
+
+	static bool odd_frame = false;
+	odd_frame = !odd_frame;
+	if (swapchain_opts.any_time.tearing_visualization)
+	{
+		clear_color[0] = odd_frame ? 0.0f : 1.0f;
+		clear_color[1] = 0.0f;
+		clear_color[2] = odd_frame ? 1.0f : 0.0f;
+	}
 
 #if 1
 	{
@@ -1341,7 +1359,7 @@ void render_game_dx12(wchar_t *hud_text, game_data *game, float fractional_ticks
 		ZeroMemory(stats, sizeof(*stats));
 	}
 
-	if (dx12->swap_event)
+	if (dx12->swap_event && !swapchain_opts.any_time.late_sync)
 	{
 		auto chain_wait_event = eviz->Start(EventViz::kCpuQueue, &event_types[EVENT_TYPE_SWAPCHAIN_WAIT]);
 		wait_for_swap_chain(dx12->swap_event.Get(), "layer 0");
@@ -1434,7 +1452,14 @@ void render_game_dx12(wchar_t *hud_text, game_data *game, float fractional_ticks
 		stats->gpu_frame_time = float(double(timestamps->draw[1] - timestamps->draw[0]) / dx12->CommandQueuePerformanceFrequency);
 	}
 
-	present_dx12(frame, CpuFrameStart, vsync_interval, stats);
+	if (dx12->swap_event && swapchain_opts.any_time.late_sync)
+	{
+		auto chain_wait_event = eviz->Start(EventViz::kCpuQueue, &event_types[EVENT_TYPE_SWAPCHAIN_WAIT]);
+		wait_for_swap_chain(dx12->swap_event.Get(), "layer 0");
+		eviz->End(chain_wait_event);
+	}
+
+	present_dx12(frame, CpuFrameStart, vsync_interval, swapchain_opts.create_time.allow_tearing, stats);
 }
 
 bool set_swapchain_options_dx12(void *pHWND, void *pCoreWindow, float x_dips, float y_dips, float dpi, dx12_swapchain_options *opts)

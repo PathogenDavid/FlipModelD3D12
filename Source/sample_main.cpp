@@ -53,7 +53,9 @@ static void rebuild_hud_string(game_data *game)
 		"[%d] FrameCount: [,]" NEWLINE
 		"[%.1f] GPU Workload up,down" NEWLINE
 		"[%d] CPU Workload Ctrl+up, Ctrl+down" NEWLINE
-		"Stats:" NEWLINE
+		"[%d] LateSync: L" NEWLINE
+		"[%d] AllowTearing: T" NEWLINE
+		"[%d] VisualizeTearing: Ctrl+T (EPILEPSY WARNING)" NEWLINE
 		"     Avg. Present Latency = %.2f ms" NEWLINE
 		"     Latency StdDev = %.2fms" NEWLINE
 		"     Latency MinMaxDev = %.2fms" NEWLINE
@@ -69,6 +71,9 @@ static void rebuild_hud_string(game_data *game)
 		swapchain_opts.create_time.gpu_frame_count,
 		swapchain_opts.any_time.overdraw_factor,
 		swapchain_opts.any_time.cpu_draw_ms,
+		swapchain_opts.any_time.late_sync,
+		swapchain_opts.create_time.allow_tearing,
+		swapchain_opts.any_time.tearing_visualization,
 		frame_latency,
 		frame_latency_stddev, frame_latency_minmaxd,
 		current_fps, 1000 / current_fps,
@@ -178,6 +183,17 @@ void process_inputs(game_command *out_action)
 			}
 			if (message.keystroke.code == 'W' && (message.keystroke.modkeys & wsi::modControl)) {
 				swapchain_opts.create_time.use_waitable_object = !swapchain_opts.create_time.use_waitable_object;
+			}
+			if (message.keystroke.code == 'T') {
+				if (message.keystroke.modkeys & wsi::modControl) {
+					swapchain_opts.any_time.tearing_visualization = !swapchain_opts.any_time.tearing_visualization;
+				}
+				else {
+					swapchain_opts.create_time.allow_tearing = !swapchain_opts.create_time.allow_tearing;
+				}
+			}
+			if (message.keystroke.code == 'L') {
+				swapchain_opts.any_time.late_sync = !swapchain_opts.any_time.late_sync;
 			}
 			if (message.keystroke.code == VK_F11) {
 				wsi::toggle_fullscreen();
