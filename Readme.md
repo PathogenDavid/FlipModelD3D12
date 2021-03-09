@@ -3,7 +3,7 @@ FlipModel D3D12 Sample Application
 
 This fork has the following changes:
 
-* LateSync: Only applicable when "Use Waitable Object" is enabled. Puts the wait right before `Preent` instead of the start of the frame
+* LateSync: Only applicable when "Use Waitable Object" is enabled. Puts the wait right before `Present` instead of the start of the frame
 * AllowTearing: Enables DXGI 1.5 `DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING`/`DXGI_PRESENT_ALLOW_TEARING` feature. (This totally breaks the present timeline.)
 * VisualizeTearing: Alternates the clear color every other frame, which is obviously horrible to those sensitive to flashing lights so enable with caution.
   * If the display is not tearing, the screen will appear red, blue, or purple.
