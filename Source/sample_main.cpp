@@ -48,7 +48,8 @@ static void rebuild_hud_string(game_data *game)
 		"[%d] Fullscreen: F11" NEWLINE
 		"[%d] Vsync: Ctrl+K" NEWLINE
 		"[%d] Use Waitable Object: Ctrl+W" NEWLINE
-		"[%d] MaximumFrameLatency: Ctrl+,Ctrl-" NEWLINE
+		"[%d] MaximumFrameLatency: Ctrl+,Ctrl- (1-8)" NEWLINE
+		"[%d] MaximumFrameLatency2: Ctrl+Shift+,Ctrl+Shift- (Shift+1-8)" NEWLINE
 		"[%d] BufferCount: +,-" NEWLINE
 		"[%d] FrameCount: [,]" NEWLINE
 		"[%.1f] GPU Workload up,down" NEWLINE
@@ -67,6 +68,7 @@ static void rebuild_hud_string(game_data *game)
 		screen.prefs.vsync,
 		swapchain_opts.create_time.use_waitable_object,
 		swapchain_opts.create_time.max_frame_latency,
+		swapchain_opts.any_time.max_frame_latency_2,
 		swapchain_opts.create_time.swapchain_buffer_count,
 		swapchain_opts.create_time.gpu_frame_count,
 		swapchain_opts.any_time.overdraw_factor,
@@ -195,6 +197,15 @@ void process_inputs(game_command *out_action)
 			if (message.keystroke.code == 'L') {
 				swapchain_opts.any_time.late_sync = !swapchain_opts.any_time.late_sync;
 			}
+			if (message.keystroke.code >= '1' && message.keystroke.code <= '8') {
+				int latency = message.keystroke.code - '0';
+				if (message.keystroke.modkeys & wsi::modShift) {
+					swapchain_opts.any_time.max_frame_latency_2 = latency;
+				}
+				else {
+					swapchain_opts.any_time.max_frame_latency_2 = swapchain_opts.create_time.max_frame_latency = latency;
+				}
+			}
 			if (message.keystroke.code == VK_F11) {
 				wsi::toggle_fullscreen();
 			}
@@ -214,7 +225,13 @@ void process_inputs(game_command *out_action)
 			}
 			else if (message.keystroke.code == VK_OEM_MINUS) {
 				if (message.keystroke.modkeys & wsi::modControl) {
-					swapchain_opts.create_time.max_frame_latency = std::max(1, swapchain_opts.create_time.max_frame_latency - 1);
+					if (message.keystroke.modkeys & wsi::modShift) {
+						swapchain_opts.any_time.max_frame_latency_2 = std::max(1, swapchain_opts.any_time.max_frame_latency_2 - 1);
+					}
+					else {
+						swapchain_opts.any_time.max_frame_latency_2 = swapchain_opts.create_time.max_frame_latency = std::max(1, swapchain_opts.create_time.max_frame_latency - 1);
+					}
+					
 				}
 				else {
 					swapchain_opts.create_time.swapchain_buffer_count = std::max(2, swapchain_opts.create_time.swapchain_buffer_count - 1);
@@ -222,7 +239,12 @@ void process_inputs(game_command *out_action)
 			}
 			else if (message.keystroke.code == VK_OEM_PLUS) {
 				if (message.keystroke.modkeys & wsi::modControl) {
-					swapchain_opts.create_time.max_frame_latency = std::min(8, swapchain_opts.create_time.max_frame_latency + 1);
+					if (message.keystroke.modkeys & wsi::modShift) {
+						swapchain_opts.any_time.max_frame_latency_2 = std::min(8, swapchain_opts.any_time.max_frame_latency_2 + 1);
+					}
+					else {
+						swapchain_opts.any_time.max_frame_latency_2 = swapchain_opts.create_time.max_frame_latency = std::min(8, swapchain_opts.create_time.max_frame_latency + 1);
+					}
 				}
 				else {
 					swapchain_opts.create_time.swapchain_buffer_count = std::min(8, swapchain_opts.create_time.swapchain_buffer_count + 1);
@@ -378,6 +400,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmdLi
 	swapchain_opts.create_time.swapchain_buffer_count = 3;
 	swapchain_opts.create_time.use_waitable_object = 1;
 	swapchain_opts.create_time.max_frame_latency = 2;
+	swapchain_opts.any_time.max_frame_latency_2 = 2;
 
 	if (initialize_dx12(&swapchain_opts))
 	{

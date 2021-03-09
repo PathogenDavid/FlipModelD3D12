@@ -28,6 +28,7 @@ struct dx12_swapchain_options
 		int cpu_draw_ms;
 		int late_sync;
 		int tearing_visualization;
+		int max_frame_latency_2;
 	} any_time;
 
 	// changing these will cause the device to be recreated

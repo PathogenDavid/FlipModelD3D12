@@ -1460,6 +1460,21 @@ void render_game_dx12(wchar_t *hud_text, game_data *game, float fractional_ticks
 	}
 
 	present_dx12(frame, CpuFrameStart, vsync_interval, swapchain_opts.create_time.allow_tearing, stats);
+
+	UINT max_latency;
+	ThrowIfFailed(dx12->swap_chain->GetMaximumFrameLatency(&max_latency));
+	if (max_latency != swapchain_opts.any_time.max_frame_latency_2)
+	{
+		OutputDebugStringW(L"Updated maximum frame latency\n");
+		dx12->swap_chain->SetMaximumFrameLatency(swapchain_opts.any_time.max_frame_latency_2);
+
+		for (UINT i = swapchain_opts.any_time.max_frame_latency_2; i < max_latency; i++)
+		{
+			OutputDebugStringW(L"Fixup wait!\n");
+			DWORD wait_result = WaitForSingleObjectEx(dx12->swap_event.Get(), 0, FALSE);
+			//assert(wait_result == WAIT_OBJECT_0); // This assert fails sometimes, presumably because it depends on the actual latency from before we changed?
+		}
+	}
 }
 
 bool set_swapchain_options_dx12(void *pHWND, void *pCoreWindow, float x_dips, float y_dips, float dpi, dx12_swapchain_options *opts)
